@@ -1,0 +1,6 @@
+venv312
+.DS_Store
+__pycache__
+*.pyc
+token.json
+credentials.json
