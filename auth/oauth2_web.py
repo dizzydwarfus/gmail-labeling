@@ -11,7 +11,7 @@ import googleapiclient.discovery
 
 # This variable specifies the name of a file that contains the OAuth 2.0
 # information for this application, including its client_id and client_secret.
-CLIENT_SECRETS_FILE = "credentials.json"
+CLIENT_SECRETS_FILE = os.path.join("secrets", "credentials.json")
 
 # The OAuth 2.0 access scope allows for access to the
 # authenticated user's account and requires requests to use an SSL connection.
@@ -96,26 +96,6 @@ def drive_api_request():
         return "<p>Drive feature is not enabled.</p>"
 
 
-@app.route("/calendar")
-def calendar_api_request():
-    if "credentials" not in flask.session:
-        return flask.redirect("authorize")
-
-    features = flask.session["features"]
-
-    if features["calendar"]:
-        # User authorized Calendar read permission.
-        # Calling the APIs, etc.
-        return (
-            "<p>User granted the Google Calendar read permission. "
-            + "This sample code does not include code to call Calendar</p>"
-        )
-    else:
-        # User didn't authorize Calendar read permission.
-        # Update UX and application accordingly
-        return "<p>Calendar feature is not enabled.</p>"
-
-
 @app.route("/authorize")
 def authorize():
     # Create flow instance to manage the OAuth 2.0 Authorization Grant Flow steps.
@@ -128,7 +108,6 @@ def authorize():
     # value doesn't match an authorized URI, you will get a 'redirect_uri_mismatch'
     # error.
     flow.redirect_uri = flask.url_for("oauth2callback", _external=True)
-    print(flow.redirect_uri)
     authorization_url, state = flow.authorization_url(
         # Enable offline access so that you can refresh an access token without
         # re-prompting the user for permission. Recommended for web server apps.
@@ -153,7 +132,6 @@ def oauth2callback():
         CLIENT_SECRETS_FILE, scopes=SCOPES, state=state
     )
     flow.redirect_uri = flask.url_for("oauth2callback", _external=True)
-    print(flow.redirect_uri)
     # Use the authorization server's response to fetch the OAuth 2.0 tokens.
     authorization_response = flask.request.url
     flow.fetch_token(authorization_response=authorization_response)
@@ -169,7 +147,6 @@ def oauth2callback():
     # Check which scopes user granted
     features = check_granted_scopes(credentials)
     flask.session["features"] = features
-    print(flask.session)
     return flask.redirect("/")
 
 
@@ -256,10 +233,6 @@ def print_index_table():
         + "    credentials for the user.</td></tr>"
         + '<tr><td><a href="/drive">Test Google Drive API request</a></td>'
         + "<td>Submit an API request to /drive and see a formatted JSON response. "
-        + "    Go through the authorization flow if there are no stored "
-        + "    credentials for the user.</td></tr>"
-        + '<tr><td><a href="/calendar">Test Calendar API request</a></td>'
-        + "<td>Submit an API request to /calendar and see a formatted JSON response. "
         + "    Go through the authorization flow if there are no stored "
         + "    credentials for the user.</td></tr>"
         + '<tr><td><a href="/authorize">Test the auth flow directly</a></td>'
