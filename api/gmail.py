@@ -55,6 +55,7 @@ def main():
 
     creds = None
     token_file = f"secrets/{options.user}_token.json"
+    print(f"token_file: {token_file}")
 
     if not os.path.exists(options.client_secret_file):
         print(f"Client secret file not found at {options.client_secret_file}.")
@@ -65,19 +66,25 @@ def main():
 
     with open(options.scope_file, "r") as file:
         SCOPES = json.load(file)["gmail"]
+        print(f"SCOPES: {json.dumps(SCOPES, indent=2)}")
 
     # The file token.json stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
     # time.
     if os.path.exists(token_file):
-        print(f"Loading token from {token_file}...")
-        creds = Credentials.from_authorized_user_file(token_file, SCOPES)
+        try:
+            print(f"Loading token from {token_file}...")
+            creds = Credentials.from_authorized_user_file(token_file, SCOPES)
+            # print(f"creds: {creds}")
+        except Exception as e:
+            print(f"Error loading token: {e}")
     # If there are no (valid) credentials available, let the user log in.
     if not creds or not creds.valid:
-        if creds and creds.expired and creds.refresh_token:
+        try:
             print("Refreshing token...")
             creds.refresh(Request())
-        else:
+        except Exception as e:
+            print(f"Error refreshing token: {e}")
             print("Getting new token...")
             flow = InstalledAppFlow.from_client_secrets_file(
                 options.client_secret_file, SCOPES
@@ -96,8 +103,20 @@ def main():
     try:
         # Call the Gmail API
         service = build("gmail", "v1", credentials=creds)
-        results = service.users().labels().list(userId="me").execute()
-        labels = results.get("labels", [])
+        all_labels = service.users().labels().list(userId="me").execute()
+        labels = all_labels.get("labels", [])
+
+        all_emails = service.users().messages().list(userId="me").execute()
+
+        emails = []
+        while next_page_token := all_emails.get("nextPageToken"):
+            all_emails = (
+                service.users()
+                .messages()
+                .list(userId="me", pageToken=next_page_token)
+                .execute()
+            )
+            emails += all_emails.get("messages", [])
 
         if not labels:
             print("No labels found.")
@@ -105,6 +124,34 @@ def main():
         print("Labels:")
         for label in labels:
             print(f"    {label["name"]}")
+
+        if not emails:
+            print("No emails found.")
+            return
+
+        print("Emails:")
+        for email in emails[2:]:
+            # print(email)
+            message = (
+                service.users().messages().get(userId="me", id=email["id"]).execute()
+            )
+            thread = (
+                service.users()
+                .threads()
+                .get(userId="me", id=email["threadId"])
+                .execute()
+            )
+
+            with open(
+                "/Users/dizzydwarfus/Dev/gmail-labeling/data/email.json", "w"
+            ) as file:
+                file.write(json.dumps(message, indent=2))
+
+            with open(
+                "/Users/dizzydwarfus/Dev/gmail-labeling/data/thread.json", "w"
+            ) as file:
+                file.write(json.dumps(thread, indent=2))
+            break
 
     except HttpError as error:
         # TODO(developer) - Handle errors from gmail API.
